@@ -111,3 +111,4 @@ resource "aws_lambda_event_source_mapping" "sqs" {
   batch_size       = 10
 }
 
+# sync
