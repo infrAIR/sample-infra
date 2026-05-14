@@ -24,21 +24,13 @@ jobs:
             exit 0
           fi
 
-          python3 -c "
-import json, os, sys
+          payload='{"files":{}}'
+          while IFS= read -r -d '' f; do
+            payload=$(jq --arg k "$f" --rawfile v "$f" '.files[$k] = $v' <<< "$payload")
+          done < <(find terraform \( -name "*.tf" -o -name "*.tfvars" \) -print0)
 
-files = {}
-for root, dirs, filenames in os.walk('terraform'):
-    dirs[:] = [d for d in dirs if not d.startswith('.')]
-    for f in filenames:
-        if f.endswith('.tf') or f.endswith('.tfvars'):
-            path = os.path.join(root, f)
-            with open(path) as fh:
-                files[path] = fh.read()
-
-print(json.dumps({'files': files}))
-" > /tmp/sync-payload.json
+          echo "Syncing $(echo "$payload" | jq '.files | length') terraform files..."
 
           curl -sS -f -X POST "$INFLAIR_API_URL/api/sync" \
             -H "Content-Type: application/json" \
-            -d @/tmp/sync-payload.json
+            -d "$payload"
