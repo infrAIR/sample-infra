@@ -16,25 +16,7 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Checkout infra repo
-        uses: actions/checkout@v4
-        with:
-          path: infra
-
-      - name: Checkout parser (for prcheck binary)
-        uses: actions/checkout@v4
-        with:
-          repository: infrAIR/parser
-          path: parser
-
-      - uses: actions/setup-go@v5
-        with:
-          go-version: '1.22'
-          cache-dependency-path: parser/go.sum
-
-      - name: Build prcheck
-        working-directory: parser
-        run: go build -o bin/prcheck ./cmd/prcheck
+      - uses: actions/checkout@v4
 
       - uses: hashicorp/setup-terraform@v3
         with:
@@ -43,7 +25,7 @@ jobs:
       # Generate a fresh plan if AWS creds are configured, otherwise fall
       # back to the committed testdata/plan.json so the workflow always runs.
       - name: Generate Terraform plan
-        working-directory: infra/terraform
+        working-directory: terraform
         env:
           AWS_ACCESS_KEY_ID:     ${{ secrets.AWS_ACCESS_KEY_ID }}
           AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
@@ -58,17 +40,19 @@ jobs:
             terraform show -json tfplan > plan.json
           fi
 
-      - name: Run blast analysis
-        working-directory: infra
+      - name: Post blast radius report
         env:
-          PLAN_PATH:          terraform/plan.json
-          PR_NUMBER:          ${{ github.event.pull_request.number }}
-          GITHUB_SHA:         ${{ github.sha }}
-          GITHUB_REPOSITORY:  ${{ github.repository }}
-          GITHUB_TOKEN:       ${{ secrets.GITHUB_TOKEN }}
-          NEO4J_URI:          ${{ secrets.NEO4J_URI }}
-          NEO4J_USERNAME:     ${{ secrets.NEO4J_USERNAME }}
-          NEO4J_PASSWORD:     ${{ secrets.NEO4J_PASSWORD }}
-          ANTHROPIC_API_KEY:  ${{ secrets.ANTHROPIC_API_KEY }}
-          INFLAIR_API_URL:    ${{ vars.INFLAIR_API_URL }}
-        run: ../parser/bin/prcheck
+          INFLAIR_API_URL: ${{ vars.INFLAIR_API_URL }}
+        run: |
+          jq -n \
+            --argjson plan "$(cat terraform/plan.json)" \
+            --arg token "${{ secrets.GITHUB_TOKEN }}" \
+            --arg repo  "${{ github.repository }}" \
+            --argjson pr ${{ github.event.pull_request.number }} \
+            --arg sha   "${{ github.sha }}" \
+            '{plan: $plan, github_token: $token, repository: $repo, pr_number: $pr, commit_sha: $sha}' \
+          > /tmp/payload.json
+
+          curl -sS -f -X POST "$INFLAIR_API_URL/api/prcheck" \
+            -H "Content-Type: application/json" \
+            -d @/tmp/payload.json
