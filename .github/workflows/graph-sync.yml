@@ -13,34 +13,32 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Checkout infra repo
-        uses: actions/checkout@v4
-        with:
-          path: infra
+      - uses: actions/checkout@v4
 
-      - name: Checkout parser (for sync binary)
-        uses: actions/checkout@v4
-        with:
-          repository: infrAIR/parser
-          path: parser
-
-      - uses: actions/setup-go@v5
-        with:
-          go-version: '1.22'
-          cache-dependency-path: parser/go.sum
-
-      - name: Build sync
-        working-directory: parser
-        run: go build -o bin/sync ./cmd/sync
-
-      - name: Sync graph to Neo4j
+      - name: Sync graph to backend
         env:
-          NEO4J_URI:      ${{ secrets.NEO4J_URI }}
-          NEO4J_USERNAME: ${{ secrets.NEO4J_USERNAME }}
-          NEO4J_PASSWORD: ${{ secrets.NEO4J_PASSWORD }}
+          INFLAIR_API_URL: ${{ vars.INFLAIR_API_URL }}
         run: |
-          if [ -z "$NEO4J_URI" ]; then
-            echo "NEO4J_URI not configured — skipping sync"
+          if [ -z "$INFLAIR_API_URL" ]; then
+            echo "INFLAIR_API_URL not configured — skipping sync"
             exit 0
           fi
-          ./parser/bin/sync infra/terraform
+
+          python3 -c "
+import json, os, sys
+
+files = {}
+for root, dirs, filenames in os.walk('terraform'):
+    dirs[:] = [d for d in dirs if not d.startswith('.')]
+    for f in filenames:
+        if f.endswith('.tf') or f.endswith('.tfvars'):
+            path = os.path.join(root, f)
+            with open(path) as fh:
+                files[path] = fh.read()
+
+print(json.dumps({'files': files}))
+" > /tmp/sync-payload.json
+
+          curl -sS -f -X POST "$INFLAIR_API_URL/api/sync" \
+            -H "Content-Type: application/json" \
+            -d @/tmp/sync-payload.json
