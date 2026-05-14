@@ -110,3 +110,4 @@ resource "aws_lambda_event_source_mapping" "sqs" {
   function_name    = aws_lambda_function.event_processor.arn
   batch_size       = 10
 }
+
