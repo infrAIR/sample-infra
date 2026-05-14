@@ -1,0 +1,73 @@
+name: Blast Radius Report
+
+on:
+  pull_request:
+    paths:
+      - 'terraform/**/*.tf'
+      - 'terraform/**/*.tfvars'
+      - 'testdata/plan.json'
+
+permissions:
+  pull-requests: write
+  contents: read
+
+jobs:
+  blast-report:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout infra repo
+        uses: actions/checkout@v4
+        with:
+          path: infra
+
+      - name: Checkout parser (for prcheck binary)
+        uses: actions/checkout@v4
+        with:
+          repository: infrAIR/parser
+          path: parser
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version: '1.22'
+          cache-dependency-path: parser/go.sum
+
+      - name: Build prcheck
+        working-directory: parser
+        run: go build -o bin/prcheck ./cmd/prcheck
+
+      - uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: '1.9.0'
+
+      # Generate a fresh plan if AWS creds are configured, otherwise fall
+      # back to the committed testdata/plan.json so the workflow always runs.
+      - name: Generate Terraform plan
+        working-directory: infra/terraform
+        env:
+          AWS_ACCESS_KEY_ID:     ${{ secrets.AWS_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          AWS_DEFAULT_REGION:    us-east-1
+        run: |
+          if [ -z "$AWS_ACCESS_KEY_ID" ]; then
+            echo "No AWS credentials — using testdata/plan.json"
+            cp ../testdata/plan.json plan.json
+          else
+            terraform init -backend=false
+            terraform plan -out=tfplan -refresh=false
+            terraform show -json tfplan > plan.json
+          fi
+
+      - name: Run blast analysis
+        working-directory: infra
+        env:
+          PLAN_PATH:          terraform/plan.json
+          PR_NUMBER:          ${{ github.event.pull_request.number }}
+          GITHUB_SHA:         ${{ github.sha }}
+          GITHUB_REPOSITORY:  ${{ github.repository }}
+          GITHUB_TOKEN:       ${{ secrets.GITHUB_TOKEN }}
+          NEO4J_URI:          ${{ secrets.NEO4J_URI }}
+          NEO4J_USERNAME:     ${{ secrets.NEO4J_USERNAME }}
+          NEO4J_PASSWORD:     ${{ secrets.NEO4J_PASSWORD }}
+          ANTHROPIC_API_KEY:  ${{ secrets.ANTHROPIC_API_KEY }}
+        run: ../parser/bin/prcheck

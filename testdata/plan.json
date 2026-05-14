@@ -1,0 +1,55 @@
+{
+  "format_version": "1.2",
+  "terraform_version": "1.9.0",
+  "variables": {
+    "app_image_tag": { "value": "v1.14.0" },
+    "environment":   { "value": "staging" },
+    "aws_region":    { "value": "us-east-1" }
+  },
+  "resource_changes": [
+    {
+      "address": "aws_ecs_task_definition.api",
+      "mode": "managed",
+      "type": "aws_ecs_task_definition",
+      "name": "api",
+      "provider_name": "registry.terraform.io/hashicorp/aws",
+      "change": {
+        "actions": ["create"],
+        "before": null,
+        "after": {
+          "family": "staging-api-task",
+          "cpu": "512",
+          "memory": "1024"
+        },
+        "after_unknown": { "arn": true, "revision": true }
+      }
+    },
+    {
+      "address": "aws_ecs_service.api",
+      "mode": "managed",
+      "type": "aws_ecs_service",
+      "name": "api",
+      "provider_name": "registry.terraform.io/hashicorp/aws",
+      "change": {
+        "actions": ["update"],
+        "before": {
+          "name":            "staging-api",
+          "cluster":         "arn:aws:ecs:us-east-1:123456789012:cluster/staging-cluster",
+          "task_definition": "arn:aws:ecs:us-east-1:123456789012:task-definition/staging-api-task:42",
+          "desired_count":   2
+        },
+        "after": {
+          "name":            "staging-api",
+          "cluster":         "arn:aws:ecs:us-east-1:123456789012:cluster/staging-cluster",
+          "task_definition": "arn:aws:ecs:us-east-1:123456789012:task-definition/staging-api-task:43",
+          "desired_count":   2
+        },
+        "after_unknown": {}
+      }
+    }
+  ],
+  "prior_state": null,
+  "configuration": {
+    "root_module": {}
+  }
+}

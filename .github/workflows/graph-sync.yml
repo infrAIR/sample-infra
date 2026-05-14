@@ -1,0 +1,46 @@
+name: Graph Sync
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'terraform/**/*.tf'
+      - 'terraform/**/*.tfvars'
+  workflow_dispatch:
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout infra repo
+        uses: actions/checkout@v4
+        with:
+          path: infra
+
+      - name: Checkout parser (for sync binary)
+        uses: actions/checkout@v4
+        with:
+          repository: infrAIR/parser
+          path: parser
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version: '1.22'
+          cache-dependency-path: parser/go.sum
+
+      - name: Build sync
+        working-directory: parser
+        run: go build -o bin/sync ./cmd/sync
+
+      - name: Sync graph to Neo4j
+        env:
+          NEO4J_URI:      ${{ secrets.NEO4J_URI }}
+          NEO4J_USERNAME: ${{ secrets.NEO4J_USERNAME }}
+          NEO4J_PASSWORD: ${{ secrets.NEO4J_PASSWORD }}
+        run: |
+          if [ -z "$NEO4J_URI" ]; then
+            echo "NEO4J_URI not configured — skipping sync"
+            exit 0
+          fi
+          ./parser/bin/sync infra/terraform
