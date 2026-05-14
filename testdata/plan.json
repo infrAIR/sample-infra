@@ -8,41 +8,24 @@
   },
   "resource_changes": [
     {
-      "address": "aws_ecs_task_definition.api",
-      "mode": "managed",
-      "type": "aws_ecs_task_definition",
-      "name": "api",
-      "provider_name": "registry.terraform.io/hashicorp/aws",
-      "change": {
-        "actions": ["create"],
-        "before": null,
-        "after": {
-          "family": "staging-api-task",
-          "cpu": "512",
-          "memory": "1024"
-        },
-        "after_unknown": { "arn": true, "revision": true }
-      }
-    },
-    {
-      "address": "aws_ecs_service.api",
+      "address": "aws_ecs_service.worker",
       "mode": "managed",
       "type": "aws_ecs_service",
-      "name": "api",
+      "name": "worker",
       "provider_name": "registry.terraform.io/hashicorp/aws",
       "change": {
         "actions": ["update"],
         "before": {
-          "name":            "staging-api",
+          "name":            "staging-worker",
           "cluster":         "arn:aws:ecs:us-east-1:123456789012:cluster/staging-cluster",
-          "task_definition": "arn:aws:ecs:us-east-1:123456789012:task-definition/staging-api-task:42",
-          "desired_count":   2
+          "task_definition": "arn:aws:ecs:us-east-1:123456789012:task-definition/staging-worker-task:7",
+          "desired_count":   1
         },
         "after": {
-          "name":            "staging-api",
+          "name":            "staging-worker",
           "cluster":         "arn:aws:ecs:us-east-1:123456789012:cluster/staging-cluster",
-          "task_definition": "arn:aws:ecs:us-east-1:123456789012:task-definition/staging-api-task:43",
-          "desired_count":   2
+          "task_definition": "arn:aws:ecs:us-east-1:123456789012:task-definition/staging-worker-task:7",
+          "desired_count":   3
         },
         "after_unknown": {}
       }
